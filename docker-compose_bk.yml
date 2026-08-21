@@ -1,0 +1,32 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: srv-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: 123senac
+      MYSQL_DATABASE: dbprodutos
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-p123senac"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5030:3306"
+    networks: [monitoring]
+
+  mysqld-exporter:
+    image: prom/mysqld-exporter:v0.19.0
+    container_name: mysqld-exporter
+    command:
+      - --mysqld.address=mysql:3306
+      - --mysqld.username=root
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: 123senac
+    ports:
+      - "9104:9104"
+    depends_on:
+      - mysql
+    networks: [monitoring]
+
+networks:
+  monitoring: {}

@@ -1,0 +1,121 @@
+services:
+  mysql:
+    image: mysql:latest
+    container_name: srv-mysql
+    restart: unless-stopped
+    command: 
+      - --performance-schema=ON
+      - --slow-query-log=ON
+      - --long-query-time=1
+      - --log-queries-not-using-indexes=ON
+      - --innodb-monitor-enable=all
+    environment:
+      MYSQL_ROOT_PASSWORD: 123senac
+      MYSQL_DATABASE: dbprodutos
+      MYSQL_USER: senac
+      MYSQL_PASSWORD: 123senac
+    ports:
+      - "5030:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin","ping","-h", "localhost","-p123senac"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+    networks:
+      - monitoring
+  
+  mysqld-exporter:
+    image: prom/mysqld-exporter:v0.19.0
+    container_name: mysqld-exporter
+    restart: unless-stopped
+    command: 
+      - "--mysqld.address=mysql:3306"
+      - "--mysqld.username=senac"
+      - "--collect.mysql.user"
+      - "--collect.info_schema.processlist"
+      - "--collect.info_schema.tables"
+      - "--collect.info_schema.innodb_metrics"
+      - "--collect.info_schema.innodb_tablespaces"
+      - "--collect.perf_schema.eventsstatements"
+      - "--collect.perf_schema.eventswaits"
+      - "--collect.perf_schema.file_events"
+      - "--collect.perf_schema.file_instances"
+      - "--collect.perf_schema.indexiowaits"
+      - "--collect.perf_schema.memory_events"
+      - "--collect.perf_schema.tableiowaits"
+      - "--collect.perf_schema.tablelocks"
+      - "--collect.engine_innodb_status"
+    ports:
+      - "9104:9104"
+    
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: 123senac
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - monitoring
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    container_name: prometheus
+    restart: always
+    command: 
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+    depends_on:
+      - mysql
+      - mysqld-exporter
+      - cadvisor
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    networks:
+      - monitoring
+  
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    container_name: cadvisor
+    restart: unless-stopped
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    ports:
+      - "8080:8080"
+    networks:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:12.1.1
+    container_name: grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    networks:
+      - monitoring
+
+volumes:
+  mysql_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  monitoring:
+    driver: bridge
