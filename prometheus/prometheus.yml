@@ -1,8 +1,21 @@
+# Arquivo principal de configuração do Prometheus
+# Referenciado no docker-compose na linha: --config.file=/etc/prometheus/prometheus.yml
+# Define dde quanto em quanto tempo as métricas são coletadas e quais são as ferramentas 
+# que serão consulotadas para extrair as métricas, note que neste arquivo temos as 
+# ferramentas(targes): Mysql-exporter, CAdvisor, Prometheus
 global:
+# Intervalo padrão entre as coletas das métricas. A cada 15s segundos o
+# Prometheus acessa as ferramentas e coleta dados delas
   scrape_interval: 15s
+# Intervalo em que o Prometheus avalia as regras de acesso e coleta de dados
   evaluation_interval: 15s
 
+# Area de configuração das ferramentas que fornecem metricas ao Prometheus
 scrape_configs:
+# job name é o nome que aparece ao selecionar uma query(consulta) relacionada
+# a esta ferramenta.
+# target é a ferramente que será acessada para coletar os dados de métricas
+# e passará ao Prometheus.
   - job_name: mysql
     static_configs:
       - targets:

@@ -1,28 +1,65 @@
 services:
+# Serviço de banco de dados do mysql. Aqui estamos definindo o nome do serviço como mysql: outro exemplos 
+# de nomes dados ao servco de banco de dados, são db ou database
+# Note que para configurar o serviço mysql foi aplicado uma identação e logo abaixo o nome da imagem. Estamos 
+# definindo a imagem como mysql em sua última versão(latest)
+# container_name(nome do container)
+# restart(reiniciar). Temos as flags: always e unless-stopped. Para a flag
+# always, estamos dizendo que o servidor sempre será reiniciado, mesmo que você o desligue manualmente. Quando 
+# a máquina for reiniciada o container liga automaticamente.
+# Quando usamos a flag unless-stopped, se o container de banco de dados for desligado manualmente e 
+# a máquina reiniciar o container não religará Você terá de dar o comando para ligar o container do banco
   mysql:
     image: mysql:latest
     container_name: srv-mysql
     restart: unless-stopped
+# Comandos que serão disponibilizados para as ferramentas de metricas
     command: 
+# Permite o acesso ao schemas(banco de dados) do mysql
       - --performance-schema=ON
+# Permite obter as metricas de query(consultas) lentas(slow)
       - --slow-query-log=ON
+# Define quanto tempo irá esperar par aobter as métricas de queries lentas
       - --long-query-time=1
+# Obtem as metricas de queries que não usam indices(chaves)
       - --log-queries-not-using-indexes=ON
+# Permite o acesso e monitoramento das bases que são do engine innodb
       - --innodb-monitor-enable=all
+# Definição de variáveis de ambiente. Estas variáveis 
+# devem ser escritas com letras maiúsculas
+
     environment:
       MYSQL_ROOT_PASSWORD: 123senac
       MYSQL_DATABASE: dbprodutos
       MYSQL_USER: senac
       MYSQL_PASSWORD: 123senac
+# Ports(Portas de comunicação do servidor). Configuração: acesso_externo:acesso_interno,
+# ou seja, o valor que é inserido ao lado esquerdo é o número da porta acesso ao "mundo externo"
+# e o número que fica no lado direito é a porta padrão da aplicação (do serviço) porta interna,
+# assim temos 5030:3306 significa que o acesso externo será pela porta 5030 e o banco(serviço) vai
+# processar pela porta padrão(porta interna) 3306
     ports:
       - "5030:3306"
+# Volume: Define onde serão guardados os dados gerados durante o trabalho com o container
+# É um local de armazenamento dos dados, fora do container. Note que estamos apontando
+# o volume de armazenamento para a pasta mysql_data. Os dados do container passam pela
+# pasta /var/lib/mysql e são direcionados para a pasta mysql_data(volume), Estes dados
+# não são perdidos quando o container é apagado. Os dados podem ser usados em outros containers
     volumes:
       - mysql_data:/var/lib/mysql
+# Verificação da saúde do container.
+# Test via terminal(cmd), como admin do mysql, ping(para verificar se o servidor de banco está online),
+# -h (host) verificar o host como localhost e passar a senha de acesso do root
     healthcheck:
       test: ["CMD", "mysqladmin","ping","-h", "localhost","-p123senac"]
+# intervalo de verificação da saúde do banco
       interval: 10s
+# tempo de espera para a verificação da saúde do banco
       timeout: 5s
+# Quantas tentativas o container irá fazer a verificação até retornar 
+# erro de conexão e/ou saúde instável
       retries: 15
+# Serviço de rede onde os demais serviços estarão conectados
     networks:
       - monitoring
   
@@ -31,27 +68,32 @@ services:
     container_name: mysqld-exporter
     restart: unless-stopped
     command: 
-      - "--mysqld.address=mysql:3306"
-      - "--mysqld.username=senac"
-      - "--collect.mysql.user"
-      - "--collect.info_schema.processlist"
-      - "--collect.info_schema.tables"
-      - "--collect.info_schema.innodb_metrics"
-      - "--collect.info_schema.innodb_tablespaces"
-      - "--collect.perf_schema.eventsstatements"
-      - "--collect.perf_schema.eventswaits"
-      - "--collect.perf_schema.file_events"
-      - "--collect.perf_schema.file_instances"
-      - "--collect.perf_schema.indexiowaits"
-      - "--collect.perf_schema.memory_events"
-      - "--collect.perf_schema.tableiowaits"
-      - "--collect.perf_schema.tablelocks"
-      - "--collect.engine_innodb_status"
+      - "--mysqld.address=mysql:3306" #Definir o serviço e a porta de comunicação
+      - "--mysqld.username=senac" #Usuário para ter acesso as métricas
+      - "--collect.mysql.user" #Coletar dados referente aos usuários
+      - "--collect.info_schema.processlist" #Coleta dados de processos ativos: conexões, queries em execução
+      - "--collect.info_schema.tables" #Coleta dados sobre as tabelas: linhas, tamanhos, colunas
+      - "--collect.info_schema.innodb_metrics" #Coletar métricas dos bancos que estão na coleção innodb
+      - "--collect.info_schema.innodb_tablespaces" #Coletar metricas das tabelas temporarias
+      - "--collect.perf_schema.eventsstatements" #Estatisticas de comandos(Statement) sql
+      - "--collect.perf_schema.eventsstatementssum" #Soma das estatisticas de comando
+      - "--collect.perf_schema.eventswaits" #Tempo de espera para monitoramento das estatisticas
+      - "--collect.perf_schema.file_events" #Arquivos de monitoramento de comandos
+      - "--collect.perf_schema.file_instances" #Estatisticas por instancias de banco de dados
+      - "--collect.perf_schema.indexiowaits" #Espera de IO(input|out) em arquivos de banco de dados
+      - "--collect.perf_schema.memory_events" #Estatisticas relacionadas ao uso de memória
+      - "--collect.perf_schema.tableiowaits" #Espera por entrada e saída de  dados em tabelas
+      - "--collect.perf_schema.tablelocks" #Estatisticas de quanto tempo a tabela ficou bloqueada
+      - "--collect.engine_innodb_status" #Coleta status dos bancos de dados da coleção Innodb
     ports:
       - "9104:9104"
     
     environment:
       MYSQLD_EXPORTER_PASSWORD: 123senac
+# Este serviço depende do serviço de banco de dados mysql. Portanto,
+# o comando depends on, nos diz de quem mysql-exporter depende para funcionar.
+# Neste caso, estamos dizendo que o exporter depende do mysql. Mas, não so isso, estamos dizendo que o
+# serviço de banco de dados deve ter a condição de "saúde" esteja saudável (service_healthy)
     depends_on:
       mysql:
         condition: service_healthy
@@ -63,7 +105,10 @@ services:
     container_name: prometheus
     restart: always
     command: 
+# Nesta linha, foi setado(apontado) o local do arquivo de configuração do prometheus, onde encontramos as
+# ferramentas de métricas que seráo usadas para armazenar os dados e depois passados ao grafana.
       - "--config.file=/etc/prometheus/prometheus.yml"
+# Tempo de retenção(armazenamento) dos dados por 15 dias
       - "--storage.tsdb.retention.time=15d"
     depends_on:
       - mysql
